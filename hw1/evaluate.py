@@ -134,6 +134,13 @@ def main(test_path: str, endpoint: str, batch_size=32):
 
     acc = accuracy_score(labels_s, predictions_s)
     f = f1_score(labels_s, predictions_s, average="macro")
+    
+    with open("confusion_matrix.json", "w+") as fp:
+        import json 
+        json.dump({
+            "label": flat_list(labels_s), 
+            "prediction": flat_list(predictions_s)
+        }, fp)
 
     print(f"# accuracy: {acc:.4f}")
     print(f"# f1: {f:.4f}")

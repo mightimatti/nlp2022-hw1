@@ -1,13 +1,18 @@
 import numpy as np
 from typing import List, Tuple
+from stud.data_pre_processor import DataPreprocessor, IDX2TAG
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+import os
 
-from model import Model
+from stud.model import Model, prepare_batch
 
 
 def build_model(device: str) -> Model:
-    # STUDENT: return StudentModel()
-    # STUDENT: your model MUST be loaded on the device "device" indicates
-    return RandomBaseline()
+    model = StudentModel(device)
+    return model
 
 
 class RandomBaseline(Model):
@@ -24,27 +29,29 @@ class RandomBaseline(Model):
         (2751, "I-LOC"),
         (6141, "I-PER"),
         (1800, "I-PROD"),
-        (203394, "O")
+        (203394, "O"),
     ]
 
-    def __init__(self):
-        self._options = [option[1] for option in self.options]
-        self._weights = np.array([option[0] for option in self.options])
-        self._weights = self._weights / self._weights.sum()
+
+class StudentModel:
+    def __init__(self, device):
+        self.pre_processor = DataPreprocessor()
+
+        model = Model("glove-twitter-25", 26, False)
+        model_path = os.path.join("stud", "test_3.model")
+        print("loading cached model in '{}'".format(model_path))
+        model.load_state_dict(torch.load(model_path))
+        model.to(device)
+        self.model = model
 
     def predict(self, tokens: List[List[str]]) -> List[List[str]]:
-        return [
-            [str(np.random.choice(self._options, 1, p=self._weights)[0]) for _x in x]
-            for x in tokens
-        ]
+        self.pre_processor.process_sentences(tokens)
+        self.pre_processor.pre_process_pos_tags()
+        batch = [fv for fv in self.pre_processor]
 
+        with torch.no_grad():
+            res, mask = self.model(*prepare_batch(batch, training=False))
+            predictions = self.model.crf.decode(res, mask=mask)
+        predictions = [list(map(lambda x: IDX2TAG[x], pred)) for pred in predictions]
 
-class StudentModel(Model):
-
-    # STUDENT: construct here your model
-    # this class should be loading your weights and vocabulary
-
-    def predict(self, tokens: List[List[str]]) -> List[List[str]]:
-        # STUDENT: implement here your predict function
-        # remember to respect the same order of tokens!
-        pass
+        return predictions
